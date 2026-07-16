@@ -14,10 +14,18 @@ from pyspark.context import SparkContext
 from pyspark.sql import functions as F
 
 BUCKET = "glue-sample-bucket"
-INPUT_PATH = f"s3a://{BUCKET}/input/"
-OUTPUT_PATH = f"s3a://{BUCKET}/output/sales_summary/"
+DEFAULT_INPUT_PREFIX = "input/"
 
 args = getResolvedOptions(sys.argv, ["JOB_NAME"])
+
+# Optional: allows the same job to process the UTF-8 output of
+# convert_encoding_job.py (e.g. --INPUT_PREFIX input_converted/).
+INPUT_PREFIX = DEFAULT_INPUT_PREFIX
+if "--INPUT_PREFIX" in sys.argv:
+    INPUT_PREFIX = getResolvedOptions(sys.argv, ["JOB_NAME", "INPUT_PREFIX"])["INPUT_PREFIX"]
+
+INPUT_PATH = f"s3a://{BUCKET}/{INPUT_PREFIX}"
+OUTPUT_PATH = f"s3a://{BUCKET}/output/sales_summary/"
 
 sc = SparkContext.getOrCreate()
 

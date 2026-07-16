@@ -1,0 +1,11 @@
+order_id,customer,product,quantity,price,order_date
+1001,Tanaka,Widget A,5,120.5,2026-06-01
+1002,Suzuki,Widget B,2,300.0,2026-06-01
+1003,Sato,Widget A,3,120.5,2026-06-02
+1004,Takahashi,Widget C,1,999.99,2026-06-02
+1005,Tanaka,Widget B,4,300.0,2026-06-03
+1006,Ito,Widget A,10,120.5,2026-06-03
+1007,Watanabe,Widget C,2,999.99,2026-06-04
+1008,Sato,Widget B,0,300.0,2026-06-04
+1009,Yamamoto,Widget A,7,120.5,2026-06-05
+1010,Suzuki,Widget C,3,999.99,2026-06-05

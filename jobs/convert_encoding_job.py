@@ -2,29 +2,43 @@
 Sample job: use the encoding_converter component to convert S3 objects
 from Shift_JIS (CP932) to UTF-8 before the main ETL job consumes them.
 
-s3://glue-sample-bucket/input_sjis/*      (CP932)
-    -> s3://glue-sample-bucket/input_converted/*  (UTF-8)
+s3://<bucket>/input_sjis/*      (CP932)
+    -> s3://<bucket>/input_converted/*  (UTF-8)
+
+Runs unmodified both locally (against LocalStack, via --S3_ENDPOINT) and as
+a real AWS Glue (Python shell) job (against actual S3, when --S3_ENDPOINT
+is omitted).
 """
 import sys
 
 import boto3
 
-sys.path.insert(0, "/home/glue_user/workspace/jobs/lib")
-from encoding_converter import convert_s3_object  # noqa: E402
+try:
+    from encoding_converter import convert_s3_object
+    from job_args import resolve_optional
+except ImportError:
+    sys.path.insert(0, "/home/glue_user/workspace/jobs/lib")
+    from encoding_converter import convert_s3_object
+    from job_args import resolve_optional
 
-BUCKET = "glue-sample-bucket"
+BUCKET = resolve_optional(sys.argv, "BUCKET", "glue-sample-bucket")
+S3_ENDPOINT = resolve_optional(sys.argv, "S3_ENDPOINT", "")
 SRC_PREFIX = "input_sjis/"
 DST_PREFIX = "input_converted/"
 SRC_ENCODING = "cp932"
 DST_ENCODING = "utf-8"
 
-s3 = boto3.client(
-    "s3",
-    endpoint_url="http://localstack:4566",
-    aws_access_key_id="test",
-    aws_secret_access_key="test",
-    region_name="ap-northeast-1",
-)
+s3_kwargs = {}
+if S3_ENDPOINT:
+    # Local run against LocalStack: fixed dummy credentials and region.
+    s3_kwargs.update(
+        endpoint_url=S3_ENDPOINT,
+        aws_access_key_id="test",
+        aws_secret_access_key="test",
+        region_name="ap-northeast-1",
+    )
+# On real AWS Glue, region and credentials come from the job's IAM role.
+s3 = boto3.client("s3", **s3_kwargs)
 
 resp = s3.list_objects_v2(Bucket=BUCKET, Prefix=SRC_PREFIX)
 objects = [o for o in resp.get("Contents", []) if not o["Key"].endswith("/")]

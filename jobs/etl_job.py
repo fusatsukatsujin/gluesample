@@ -1,8 +1,11 @@
 """
-AWS Glue ETL sample job (runs locally against LocalStack S3).
+AWS Glue ETL sample job.
 
 Reads sales.csv from S3, computes per-product totals, and writes the
 result back to S3 as Parquet using the standard GlueContext DynamicFrame API.
+
+Runs unmodified both locally (against LocalStack, via --S3_ENDPOINT) and as
+a real AWS Glue job (against actual S3, when --S3_ENDPOINT is omitted).
 """
 import sys
 
@@ -13,30 +16,36 @@ from awsglue.utils import getResolvedOptions
 from pyspark.context import SparkContext
 from pyspark.sql import functions as F
 
-BUCKET = "glue-sample-bucket"
-DEFAULT_INPUT_PREFIX = "input/"
+try:
+    from job_args import resolve_optional
+except ImportError:
+    sys.path.insert(0, "/home/glue_user/workspace/jobs/lib")
+    from job_args import resolve_optional
 
 args = getResolvedOptions(sys.argv, ["JOB_NAME"])
 
+BUCKET = resolve_optional(sys.argv, "BUCKET", "glue-sample-bucket")
 # Optional: allows the same job to process the UTF-8 output of
 # convert_encoding_job.py (e.g. --INPUT_PREFIX input_converted/).
-INPUT_PREFIX = DEFAULT_INPUT_PREFIX
-if "--INPUT_PREFIX" in sys.argv:
-    INPUT_PREFIX = getResolvedOptions(sys.argv, ["JOB_NAME", "INPUT_PREFIX"])["INPUT_PREFIX"]
+INPUT_PREFIX = resolve_optional(sys.argv, "INPUT_PREFIX", "input/")
+# Optional: set only for local runs against LocalStack (e.g. http://localstack:4566).
+# Left unset, Glue uses the job's IAM role against real AWS S3.
+S3_ENDPOINT = resolve_optional(sys.argv, "S3_ENDPOINT", "")
 
 INPUT_PATH = f"s3a://{BUCKET}/{INPUT_PREFIX}"
 OUTPUT_PATH = f"s3a://{BUCKET}/output/sales_summary/"
 
 sc = SparkContext.getOrCreate()
 
-# Point the Hadoop S3A connector at LocalStack instead of real AWS S3.
-hadoop_conf = sc._jsc.hadoopConfiguration()
-hadoop_conf.set("fs.s3a.endpoint", "http://localstack:4566")
-hadoop_conf.set("fs.s3a.access.key", "test")
-hadoop_conf.set("fs.s3a.secret.key", "test")
-hadoop_conf.set("fs.s3a.path.style.access", "true")
-hadoop_conf.set("fs.s3a.connection.ssl.enabled", "false")
-hadoop_conf.set("fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
+if S3_ENDPOINT:
+    # Point the Hadoop S3A connector at LocalStack instead of real AWS S3.
+    hadoop_conf = sc._jsc.hadoopConfiguration()
+    hadoop_conf.set("fs.s3a.endpoint", S3_ENDPOINT)
+    hadoop_conf.set("fs.s3a.access.key", "test")
+    hadoop_conf.set("fs.s3a.secret.key", "test")
+    hadoop_conf.set("fs.s3a.path.style.access", "true")
+    hadoop_conf.set("fs.s3a.connection.ssl.enabled", "false")
+    hadoop_conf.set("fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
 
 glueContext = GlueContext(sc)
 spark = glueContext.spark_session

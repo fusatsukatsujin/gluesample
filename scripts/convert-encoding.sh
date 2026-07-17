@@ -4,5 +4,5 @@
 set -euo pipefail
 
 docker compose exec glue bash -lc '
-  python3 /home/glue_user/workspace/jobs/convert_encoding_job.py
+  python3 /home/glue_user/workspace/jobs/convert_encoding_job.py --S3_ENDPOINT http://localstack:4566
 '

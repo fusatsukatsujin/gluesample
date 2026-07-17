@@ -155,8 +155,7 @@ terraform apply
 aws glue start-job-run --job-name <project_name>-etl-job --region ap-northeast-1
 ```
 
-ジョブの実行状況・ログは AWS マネジメントコンソールの Glue ジョブ画面、または
-CloudWatch Logs（ロググループ `/aws-glue/jobs/output` など）で確認できます。
+コマンドは実行中のジョブを待たずに `JobRunId` を返して終了します。完了確認は次項を参照してください。
 
 変換済みデータに対して ETL ジョブを実行したい場合は、`start-job-run` に
 `--arguments` でデフォルト値を上書きします。
@@ -167,14 +166,61 @@ aws glue start-job-run \
   --arguments '{"--INPUT_PREFIX":"input_converted/"}'
 ```
 
-### 4. 後片付け
+### 4. AWS 上での実行結果を確認する
+
+**a. ジョブの実行状況を確認する**
+
+```bash
+aws glue get-job-run \
+  --job-name <project_name>-etl-job \
+  --run-id <JobRunId> \
+  --region ap-northeast-1 \
+  --query 'JobRun.JobRunState'
+```
+
+`STARTING` → `RUNNING` → `SUCCEEDED`（失敗時は `FAILED` / `ERROR` / `TIMEOUT`）と遷移します。
+Spark ジョブ（`etl-job`）はクラスタ起動を含めて数分、Python shell ジョブ
+（`convert-encoding-job`）は数十秒程度で完了します。AWS マネジメントコンソールの
+Glue ジョブ画面からも同様に確認できます。
+
+**b. ジョブの標準出力（ログ）を確認する**
+
+`etl_job.py` の `summary_df.show()` の出力は CloudWatch Logs に記録されます。
+
+```bash
+aws logs get-log-events \
+  --log-group-name /aws-glue/jobs/output \
+  --log-stream-name <JobRunId> \
+  --region ap-northeast-1 \
+  --query 'events[*].message' --output text
+```
+
+`convert_encoding_job.py`（Python shell ジョブ）のログは `/aws-glue/python-jobs`
+ロググループの、同じく `<JobRunId>` という名前のログストリームに出力されます。
+
+**c. S3 上の出力データを確認する**
+
+```bash
+# 変換済みデータ（convert-encoding-job 実行後）
+aws s3 ls s3://<bucket_name>/input_converted/
+aws s3 cp s3://<bucket_name>/input_converted/sales_sjis.csv - | head
+
+# 集計結果（etl-job 実行後、Parquet）
+aws s3 ls s3://<bucket_name>/output/sales_summary/
+```
+
+`<bucket_name>` は `terraform output bucket_name` で確認できます。
+
+### 5. 後片付け
 
 ```bash
 terraform destroy
 ```
 
-S3 バケット・IAM ロール・Glue ジョブには課金が発生し得ます（特に Glue ジョブの実行時間）。
-使い終わったら忘れずに `terraform destroy` してください。
+S3 バケット（`force_destroy = true` のため、ジョブが書き込んだ出力ファイルが残っていても
+削除できます）・IAM ロール・Glue ジョブをすべて削除します。S3 バケット・IAM ロール自体は
+ほぼ無料ですが、Glue ジョブは実行時間に応じて課金されます。使い終わったら忘れずに
+`terraform destroy` してください。
 
 ## 文字コード変換部品について
 

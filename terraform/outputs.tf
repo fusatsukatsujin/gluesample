@@ -13,6 +13,11 @@ output "convert_encoding_job_name" {
   value       = aws_glue_job.convert_encoding.name
 }
 
+output "convert_ebcdic_job_name" {
+  description = "Name of the EBCDIC fixed-length normalization Glue job."
+  value       = aws_glue_job.convert_ebcdic.name
+}
+
 output "run_etl_job_command" {
   description = "AWS CLI command to start the ETL job."
   value       = "aws glue start-job-run --job-name ${aws_glue_job.etl.name} --region ${var.aws_region}"
@@ -21,4 +26,9 @@ output "run_etl_job_command" {
 output "run_convert_encoding_job_command" {
   description = "AWS CLI command to start the encoding conversion job."
   value       = "aws glue start-job-run --job-name ${aws_glue_job.convert_encoding.name} --region ${var.aws_region}"
+}
+
+output "run_convert_ebcdic_job_command" {
+  description = "AWS CLI command to start the EBCDIC normalization job."
+  value       = "aws glue start-job-run --job-name ${aws_glue_job.convert_ebcdic.name} --region ${var.aws_region}"
 }

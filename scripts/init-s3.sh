@@ -14,6 +14,11 @@ docker compose exec -T localstack awslocal s3 cp /tmp/sales.csv "s3://${BUCKET}/
 docker compose cp "${SCRIPT_DIR}/../data/input_sjis/sales_sjis.csv" localstack:/tmp/sales_sjis.csv
 docker compose exec -T localstack awslocal s3 cp /tmp/sales_sjis.csv "s3://${BUCKET}/input_sjis/sales_sjis.csv"
 
+# Fixed-length EBCDIC sample data, used by the host-file normalization component.
+docker compose cp "${SCRIPT_DIR}/../data/input_ebcdic/customers.ebc" localstack:/tmp/customers.ebc
+docker compose exec -T localstack awslocal s3 cp /tmp/customers.ebc "s3://${BUCKET}/input_ebcdic/customers.ebc"
+
 echo "Uploaded input data:"
 docker compose exec -T localstack awslocal s3 ls "s3://${BUCKET}/input/"
 docker compose exec -T localstack awslocal s3 ls "s3://${BUCKET}/input_sjis/"
+docker compose exec -T localstack awslocal s3 ls "s3://${BUCKET}/input_ebcdic/"

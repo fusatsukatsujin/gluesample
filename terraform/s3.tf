@@ -27,6 +27,13 @@ resource "aws_s3_object" "convert_encoding_job_script" {
   etag   = filemd5("${path.module}/../jobs/convert_encoding_job.py")
 }
 
+resource "aws_s3_object" "convert_ebcdic_job_script" {
+  bucket = aws_s3_bucket.data.id
+  key    = "scripts/convert_ebcdic_job.py"
+  source = "${path.module}/../jobs/convert_ebcdic_job.py"
+  etag   = filemd5("${path.module}/../jobs/convert_ebcdic_job.py")
+}
+
 resource "aws_s3_object" "job_args_lib" {
   bucket = aws_s3_bucket.data.id
   key    = "scripts/lib/job_args.py"
@@ -39,6 +46,13 @@ resource "aws_s3_object" "encoding_converter_lib" {
   key    = "scripts/lib/encoding_converter.py"
   source = "${path.module}/../jobs/lib/encoding_converter.py"
   etag   = filemd5("${path.module}/../jobs/lib/encoding_converter.py")
+}
+
+resource "aws_s3_object" "fixed_length_ebcdic_lib" {
+  bucket = aws_s3_bucket.data.id
+  key    = "scripts/lib/fixed_length_ebcdic.py"
+  source = "${path.module}/../jobs/lib/fixed_length_ebcdic.py"
+  etag   = filemd5("${path.module}/../jobs/lib/fixed_length_ebcdic.py")
 }
 
 # --- Sample input data ---
@@ -55,4 +69,11 @@ resource "aws_s3_object" "sample_input_sjis" {
   key    = "input_sjis/sales_sjis.csv"
   source = "${path.module}/../data/input_sjis/sales_sjis.csv"
   etag   = filemd5("${path.module}/../data/input_sjis/sales_sjis.csv")
+}
+
+resource "aws_s3_object" "sample_input_ebcdic" {
+  bucket = aws_s3_bucket.data.id
+  key    = "input_ebcdic/customers.ebc"
+  source = "${path.module}/../data/input_ebcdic/customers.ebc"
+  etag   = filemd5("${path.module}/../data/input_ebcdic/customers.ebc")
 }

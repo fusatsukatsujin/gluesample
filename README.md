@@ -12,23 +12,27 @@ Terraform で実際の AWS 上（S3 + IAM + Glue Job）にもそのままデプ�
 ├── docker-compose.yml          # localstack (S3) + glue (aws-glue-libs) の2サービス
 ├── data/
 │   ├── input/sales.csv         # サンプル入力データ（UTF-8）
-│   └── input_sjis/sales_sjis.csv  # サンプル入力データ（Shift_JIS/CP932）
+│   ├── input_sjis/sales_sjis.csv  # サンプル入力データ（Shift_JIS/CP932）
+│   └── input_ebcdic/customers.ebc # 固定長 EBCDIC サンプル（ホスト連携想定）
 ├── jobs/
 │   ├── etl_job.py               # Glue ETLジョブ本体（CSV→集計→Parquet）
 │   ├── read_output.py           # 出力結果を読み戻して確認するスクリプト（ローカル専用）
 │   ├── convert_encoding_job.py  # 文字コード変換ジョブ（部品の利用サンプル）
+│   ├── convert_ebcdic_job.py    # 固定長 EBCDIC → UTF-8 CSV 正規化ジョブ
 │   └── lib/
 │       ├── encoding_converter.py # 文字コード変換の再利用可能な部品
+│       ├── fixed_length_ebcdic.py # 固定長 EBCDIC のフィールド単位正規化部品
 │       └── job_args.py           # ジョブ引数を解析する共通ヘルパー
 ├── scripts/
 │   ├── init-s3.sh            # バケット作成 & 入力データアップロード（ローカル用）
 │   ├── convert-encoding.sh   # 文字コード変換ジョブの実行（ローカル用）
+│   ├── convert-ebcdic.sh     # EBCDIC 正規化ジョブの実行（ローカル用）
 │   ├── run-job.sh            # ETLジョブの実行（ローカル用。入力プレフィックスを指定可）
 │   └── verify-output.sh      # 出力結果の確認（ローカル用）
 └── terraform/                 # 実際の AWS 上にデプロイするための Terraform 一式
 ```
 
-`jobs/etl_job.py` と `jobs/convert_encoding_job.py` はローカル・AWS共通です。`--S3_ENDPOINT`
+`jobs/etl_job.py`・`jobs/convert_encoding_job.py`・`jobs/convert_ebcdic_job.py` はローカル・AWS共通です。`--S3_ENDPOINT`
 引数を渡すとローカルの LocalStack を、省略すると（Glue ジョブの IAM ロールを使って）実際の
 AWS S3 を参照します（`jobs/read_output.py` と `scripts/` 配下はローカル専用のツールです）。
 
@@ -112,7 +116,25 @@ docker compose ps
 
 日本語の商品名・顧客名が文字化けせずに集計結果へ反映されることを確認できます。
 
-### 6. 後片付け
+### 6. （任意）固定長 EBCDIC 正規化を試す
+
+ホスト連携でよくある「固定長 EBCDIC をフィールド単位でデコードし、一部項目だけ
+別変換してから UTF-8 CSV にする」シナリオです。`jobs/lib/fixed_length_ebcdic.py` が
+正規化部品、`jobs/convert_ebcdic_job.py` が S3 上のオブジェクトへ適用するジョブです。
+
+`data/input_ebcdic/customers.ebc`（`./scripts/init-s3.sh` で
+`s3://glue-sample-bucket/input_ebcdic/` にアップロード済み）を読み、
+バイト 3–10 の顧客コードにレガシー対応表を適用したうえで
+`s3://glue-sample-bucket/input_ebcdic_converted/` へ UTF-8 CSV を書き出します。
+
+```bash
+./scripts/convert-ebcdic.sh
+```
+
+ローカルのみで部品を試す場合は `python3 tmp/demo_ebcdic_fixed_length.py` でも同様の
+変換結果を確認できます。
+
+### 7. 後片付け
 
 ```bash
 docker compose down -v
@@ -124,9 +146,10 @@ docker compose down -v
 
 - S3 バケット（スクリプト・入力データ配置用。`terraform apply` 時に自動アップロード）
 - Glue ジョブ用 IAM ロール（`AWSGlueServiceRole` + このバケットへの S3 アクセス権のみ）
-- Glue Job × 2
+- Glue Job × 3
   - `<project_name>-etl-job`（Spark / `glueetl`）— `jobs/etl_job.py`
   - `<project_name>-convert-encoding-job`（Python shell）— `jobs/convert_encoding_job.py`
+  - `<project_name>-convert-ebcdic-job`（Python shell）— `jobs/convert_ebcdic_job.py`
 
 VPC やコネクションは使わないため、ネットワーク周りの設定は不要です。
 
@@ -151,7 +174,8 @@ terraform apply
 `terraform apply` の出力に表示される AWS CLI コマンドで実行できます。
 
 ```bash
-# 出力例の run_etl_job_command / run_convert_encoding_job_command を実行
+# 出力例の run_etl_job_command / run_convert_encoding_job_command /
+# run_convert_ebcdic_job_command を実行
 aws glue start-job-run --job-name <project_name>-etl-job --region ap-northeast-1
 ```
 
@@ -208,10 +232,21 @@ convert_s3_object(s3_client, "my-bucket", "raw/data.csv", "converted/data.csv",
 `bytes.decode`/`str.encode` の仕様に準拠）を変えることで、変換できない文字が
 含まれる場合の挙動も制御できます。
 
+## 固定長 EBCDIC 正規化部品について
+
+`jobs/lib/fixed_length_ebcdic.py` も Spark に依存しない部品です。40 バイト固定長の
+EBCDIC レコードをフィールド単位でデコードし、バイト 3–10 の顧客コードだけレガシー
+対応表で置換したうえで UTF-8 CSV にします。
+
+- `parse_records(body)` / `normalize_to_csv(body)` — バイナリ → 行 dict / CSV
+- `convert_s3_object(s3_client, bucket, src_key, dst_key)` — S3 上で正規化して書き出し
+
+`jobs/convert_ebcdic_job.py` がその部品を使う Python shell ジョブです。
+
 ## カスタマイズのヒント
 
 - `data/input/sales.csv` を差し替えれば、別データでジョブを試せます。
 - `jobs/etl_job.py` の集計ロジック（`groupBy` 以降）を変更すれば、任意の変換処理を試せます。
-- `jobs/etl_job.py` と `jobs/convert_encoding_job.py` はローカル・AWS共通なので、
+- `jobs/etl_job.py`・`jobs/convert_encoding_job.py`・`jobs/convert_ebcdic_job.py` はローカル・AWS共通なので、
   `terraform/` 側の `aws_s3_object` リソースが参照しているファイルを変更すれば、次の
   `terraform apply` で AWS 側のジョブにも反映されます。

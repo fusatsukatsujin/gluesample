@@ -41,8 +41,12 @@ if S3_ENDPOINT:
 # On real AWS Glue, region and credentials come from the job's IAM role.
 s3 = boto3.client("s3", **s3_kwargs)
 
-resp = s3.list_objects_v2(Bucket=BUCKET, Prefix=SRC_PREFIX)
-objects = [o for o in resp.get("Contents", []) if not o["Key"].endswith("/")]
+objects = []
+paginator = s3.get_paginator("list_objects_v2")
+for page in paginator.paginate(Bucket=BUCKET, Prefix=SRC_PREFIX):
+    for obj in page.get("Contents", []):
+        if not obj["Key"].endswith("/"):
+            objects.append(obj)
 
 if not objects:
     print(f"No objects found under s3://{BUCKET}/{SRC_PREFIX}")

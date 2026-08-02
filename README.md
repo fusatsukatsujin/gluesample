@@ -174,9 +174,10 @@ terraform apply
 `terraform apply` の出力に表示される AWS CLI コマンドで実行できます。
 
 ```bash
-# 出力例の run_etl_job_command / run_convert_encoding_job_command /
-# run_convert_ebcdic_job_command を実行
+# terraform output の run_*_job_command から必要なものを実行
 aws glue start-job-run --job-name <project_name>-etl-job --region ap-northeast-1
+aws glue start-job-run --job-name <project_name>-convert-encoding-job --region ap-northeast-1
+aws glue start-job-run --job-name <project_name>-convert-ebcdic-job --region ap-northeast-1
 ```
 
 ジョブの実行状況・ログは AWS マネジメントコンソールの Glue ジョブ画面、または

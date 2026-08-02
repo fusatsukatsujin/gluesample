@@ -18,6 +18,8 @@ Positions are 1-based inclusive, matching typical host layout docs.
 """
 from __future__ import annotations
 
+import csv
+import io
 from dataclasses import dataclass
 from typing import Callable, Iterable, Iterator, Optional
 
@@ -104,7 +106,12 @@ def _pad_ebcdic(text: str, length: int, encoding: str = DEFAULT_ENCODING) -> byt
 
 
 def _ebcdic_digits(value: int, length: int, encoding: str = DEFAULT_ENCODING) -> bytes:
-    return str(value).zfill(length).encode(encoding)
+    if value < 0:
+        raise ValueError(f"amount must be non-negative, got {value}")
+    text = str(value)
+    if len(text) > length:
+        raise ValueError(f"amount {value} has {len(text)} digits, max {length}")
+    return text.zfill(length).encode(encoding)
 
 
 def build_record(
@@ -129,12 +136,12 @@ def build_record(
 def records_to_csv_lines(rows: Iterable[dict]) -> str:
     """Serialize parsed rows to a UTF-8 CSV string (header + data)."""
     fieldnames = [f.name for f in DEFAULT_LAYOUT]
-    lines = [",".join(fieldnames)]
+    buf = io.StringIO()
+    writer = csv.DictWriter(buf, fieldnames=fieldnames, lineterminator="\n")
+    writer.writeheader()
     for row in rows:
-        lines.append(
-            ",".join(str(row[name]) for name in fieldnames)
-        )
-    return "\n".join(lines) + "\n"
+        writer.writerow({name: row[name] for name in fieldnames})
+    return buf.getvalue()
 
 
 def normalize_to_csv(body: bytes) -> bytes:

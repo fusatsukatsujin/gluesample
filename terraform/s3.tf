@@ -1,5 +1,10 @@
 resource "aws_s3_bucket" "data" {
   bucket = local.bucket_name
+
+  # Job runs write output/tmp objects that Terraform doesn't manage
+  # (output/, input_converted/, tmp/). Without this, `terraform destroy`
+  # fails with BucketNotEmpty once a job has run.
+  force_destroy = true
 }
 
 resource "aws_s3_bucket_public_access_block" "data" {

@@ -40,3 +40,23 @@ resource "aws_glue_job" "convert_encoding" {
     ])
   }
 }
+
+resource "aws_glue_job" "convert_ebcdic" {
+  name         = "${var.project_name}-convert-ebcdic-job"
+  role_arn     = aws_iam_role.glue_job.arn
+  max_capacity = 0.0625 # smallest Python shell size; this job does not use Spark
+
+  command {
+    name            = "pythonshell"
+    script_location = "s3://${aws_s3_bucket.data.id}/${aws_s3_object.convert_ebcdic_job_script.key}"
+    python_version  = "3.9"
+  }
+
+  default_arguments = {
+    "--BUCKET" = aws_s3_bucket.data.id
+    "--extra-py-files" = join(",", [
+      "s3://${aws_s3_bucket.data.id}/${aws_s3_object.job_args_lib.key}",
+      "s3://${aws_s3_bucket.data.id}/${aws_s3_object.fixed_length_ebcdic_lib.key}",
+    ])
+  }
+}

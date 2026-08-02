@@ -1,0 +1,2 @@
+# EBCDIC fixed-length host files must not be treated as text by Git.
+data/input_ebcdic/*.ebc binary
